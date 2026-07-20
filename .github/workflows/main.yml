@@ -1,0 +1,62 @@
+name: Java CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment Environment"
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - test
+          - pre-prod
+          - prod
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build WAR
+        run: mvn clean package
+
+      - name: Verify WAR
+        run: |
+          ls -lh target
+          find target -name "*.war"
+
+      - name: Test Tomcat Manager
+        if: github.event_name == 'push' || github.event.inputs.environment == 'dev'
+        run: |
+          curl -v \
+          -u "${{ secrets.DEV_USER }}:${{ secrets.DEV_PASSWORD }}" \
+          "http://${{ secrets.DEV_HOST }}:8080/manager/text/list"
+
+      - name: Deploy to DEV
+        if: github.event_name == 'push' || github.event.inputs.environment == 'dev'
+        run: |
+          curl --fail -v \
+          -u "${{ secrets.DEV_USER }}:${{ secrets.DEV_PASSWORD }}" \
+          --upload-file target/TrainBook-1.0.0-SNAPSHOT.war \
+          "http://${{ secrets.DEV_HOST }}:8080/manager/text/deploy?path=/TrainBook&update=true"
+
+      - name: Verify Deployment
+        if: github.event_name == 'push' || github.event.inputs.environment == 'dev'
+        run: |
+          curl -u "${{ secrets.DEV_USER }}:${{ secrets.DEV_PASSWORD }}" \
+          "http://${{ secrets.DEV_HOST }}:8080/manager/text/list"
