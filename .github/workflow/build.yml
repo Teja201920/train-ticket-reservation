@@ -1,4 +1,4 @@
-name: Java CI/CD Pipeline - Multi Environment Deployment
+name: CI Pipeline for Java Code Deploy
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Select Deployment Environment"
+        description: "Select Environment"
         required: true
         type: choice
         options:
@@ -18,28 +18,24 @@ on:
           - prod
 
 jobs:
-  build:
-    name: Build Java Application
+  builds:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Source Code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Install Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Verify Maven
-        run: mvn -version
-
       - name: Maven Validate
         run: mvn validate
 
       - name: Maven Compile
-        run: mvn clean compile
+        run: mvn compile
 
       - name: Maven Test
         run: mvn test
@@ -49,83 +45,36 @@ jobs:
 
       - name: Verify WAR File
         run: |
-          echo "WAR File Generated"
           ls -lh target/
           find target -name "*.war"
 
-      - name: Upload WAR Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: TrainBook-WAR
-          path: target/*.war
-
-  deploy-dev:
-    name: Deploy to DEV Environment
-    needs: build
-    if: github.event.inputs.environment == 'dev'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: TrainBook-WAR
-          path: target
-
-      - name: Deploy WAR to DEV Tomcat
+      # Deploy to DEV
+      - name: Deploy to DEV
+        if: github.event.inputs.environment == 'dev'
         run: |
           curl -v -u "${{ secrets.DEV_USER }}:${{ secrets.DEV_PASSWORD }}" \
           -T target/TrainBook-1.0.0-SNAPSHOT.war \
           "http://${{ secrets.DEV_HOST }}:8080/manager/text/deploy?path=/TrainBook&update=true"
 
-  deploy-test:
-    name: Deploy to TEST Environment
-    needs: build
-    if: github.event.inputs.environment == 'test'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: TrainBook-WAR
-          path: target
-
-      - name: Deploy WAR to TEST Tomcat
+      # Deploy to TEST
+      - name: Deploy to TEST
+        if: github.event.inputs.environment == 'test'
         run: |
           curl -v -u "${{ secrets.TEST_USER }}:${{ secrets.TEST_PASSWORD }}" \
           -T target/TrainBook-1.0.0-SNAPSHOT.war \
           "http://${{ secrets.TEST_HOST }}:8080/manager/text/deploy?path=/TrainBook&update=true"
 
-  deploy-preprod:
-    name: Deploy to PRE-PROD Environment
-    needs: build
-    if: github.event.inputs.environment == 'pre-prod'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: TrainBook-WAR
-          path: target
-
-      - name: Deploy WAR to PRE-PROD Tomcat
+      # Deploy to PRE-PROD
+      - name: Deploy to PRE-PROD
+        if: github.event.inputs.environment == 'pre-prod'
         run: |
           curl -v -u "${{ secrets.PREPROD_USER }}:${{ secrets.PREPROD_PASSWORD }}" \
           -T target/TrainBook-1.0.0-SNAPSHOT.war \
           "http://${{ secrets.PREPROD_HOST }}:8080/manager/text/deploy?path=/TrainBook&update=true"
 
-  deploy-prod:
-    name: Deploy to PROD Environment
-    needs: build
-    if: github.event.inputs.environment == 'prod'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: TrainBook-WAR
-          path: target
-
-      - name: Deploy WAR to PROD Tomcat
+      # Deploy to PROD
+      - name: Deploy to PROD
+        if: github.event.inputs.environment == 'prod'
         run: |
           curl -v -u "${{ secrets.PROD_USER }}:${{ secrets.PROD_PASSWORD }}" \
           -T target/TrainBook-1.0.0-SNAPSHOT.war \
